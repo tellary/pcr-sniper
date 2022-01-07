@@ -62,7 +62,9 @@ findFirstAppointments lastDay = do
         then do
           logWD
             $ "pageFirstDay > lastDay: "
-            ++ show pageFirstDay ++ show lastDay
+            ++ show pageFirstDay
+            ++ " > "
+            ++ show lastDay
           return []
         else do
           appts <- readAppointments
@@ -87,13 +89,16 @@ findAppointments lastDay p = do
   if null appts
     then return []
     else do
-      let appts' = filter p appts
+      let appts'
+            = filter
+              (allP [ (<= nextDayStartTime lastDay) . time, p ])
+              appts
       if not . null $ appts'
         then return appts'
         else do
           logWD
             $ "No appointments match predicate: "
-            ++ (LT.unpack . pShow $ appts)
+            ++ (LT.unpack . pShowNoColor $ appts)
           nextAppointmentsPage
           findAppointments lastDay p
     
@@ -216,7 +221,7 @@ selectItem selectElem value = do
   opts <- findElemsFrom selectElem (ByTag "option")
   filterM (fmap (== value) . getText) $ opts
 
-returnSession config wd = runSession remoteConfig $ do
+returnSession config wd = runSession config $ do
   sess <- getSession
   catch (wd >>= \a -> return (sess, Right a))
     $ \(e::SomeException) -> return (sess, Left e)
@@ -259,7 +264,7 @@ timeEndP h m = (<= TimeOfDay h m 0)
 -- (not . locationsP ["UCSF One Medical Testing Site"])
 returnSessionScenario user pwd
   = returnSession remoteConfig
-  . findAppointmentsScenario user pwd (fromGregorian 2022 5 10)
+  . findAppointmentsScenario user pwd (fromGregorian 2022 1 10)
   $ locationsP southBayLocations
 
 allP :: [a -> Bool] -> a -> Bool
