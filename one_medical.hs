@@ -3,6 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 import Control.Monad
+import Control.Monad.IO.Class
 import Control.Monad.Catch
 import Test.WebDriver
 import Test.WebDriver.Session
@@ -117,13 +118,17 @@ readAppointments = do
     else
       return []
 
-waitAppointmentsPageLoaded
-  = findElem (ByPartialLinkText "Back to Appointment Selection") >> return ()
+waitAppointmentsPageLoaded = do
+  elems <- findElems (ByPartialLinkText "Back to Appointment Selection")
+  if null elems then error "Appointments page didn't load" else return ()
 
 checkAppointmentsExistOnPage = do
   waitAppointmentsPageLoaded
-  elems <- waitUntil 1
-           $ findElems (ByXPath "//button[@data-cy='inventory-button']")
+  -- Seems that waitUntil gets affected by setImplicitWait
+  -- so waitUntil 0 $ findElems ... doesn't work below
+  setImplicitWait 0
+  elems <- findElems (ByXPath "//button[@data-cy='inventory-button']")
+  setImplicitWait defaultWait
   return . not . null $ elems
 
 readProviders =
