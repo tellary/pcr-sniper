@@ -46,15 +46,30 @@ selectAppointment :: Text -> ChooseAppointmentPage -> WD ()
 selectAppointment appointmentType _ = do
   click =<< fmap head . filterM (fmap (T.isInfixOf appointmentType) . getText) =<< findElems (ByTag "h5")
 
-findAppointments = do
+findFirstAppointments :: WD [Appointment]
+findFirstAppointments = do
   appts <- readAppointments
   if null appts
     then do
       nextAppointmentsPage
-      findAppointments
+      findFirstAppointments
   else
     return appts
 
+findAppointments :: Day -> (Appointment -> Bool) -> WD [Appointment]
+findAppointments lastDay p = do
+  let lastTime = nextDayStartTime lastDay
+  appts <- findFirstAppointments
+  if not . null . filter ((>= lastTime) . time) $ appts
+    then return []
+    else do
+      let appts' = filter p appts
+      if not . null $ appts'
+        then return appts'
+        else do
+          nextAppointmentsPage
+          findAppointments lastDay p
+    
 nextAppointmentsPage = click =<< findElem (ByXPath "//div/om-arrow-right/div")
 
 data Appointment
@@ -124,22 +139,17 @@ backToAppointmentSelection
   = click =<< findElem (ByPartialLinkText "Back to Appointment Selection")
 
 waitForAppointments
-  :: Text -> (Appointment -> Bool) -> ChooseAppointmentPage
+  :: Text -> Day -> (Appointment -> Bool) -> ChooseAppointmentPage
   -> WD [Appointment]
-waitForAppointments appointmentType p page = do
+waitForAppointments appointmentType lastDay p page = do
   selectAppointment appointmentType page
-  appts <- filter p <$> findAppointments
+  appts <- findAppointments lastDay p
   if null appts
     then do
       backToAppointmentSelection
-      waitForAppointments appointmentType p page
+      waitForAppointments appointmentType lastDay p page
     else
       return appts
-
-waitForAppointmentsNoLaterThanDay :: Text -> Day -> ChooseAppointmentPage -> WD [Appointment]
-waitForAppointmentsNoLaterThanDay appointmentType day page
-  = waitForAppointments appointmentType ((<= dayEnd) . time) page
-  where dayEnd = LocalTime (addDays 1 day) (TimeOfDay 0 0 0)
 
 selectItem :: Element -> Text -> WD [Element]
 selectItem selectElem value = do
@@ -151,12 +161,49 @@ returnSession config wd = runSession remoteConfig $ do
   catch (wd >>= \a -> return (sess, Right a))
     $ \(e::SomeException) -> return (sess, Left e)
 
-returnSessionScenario user pwd dayStr = returnSession remoteConfig $ do
-  let Just day = parseTimeM True defaultTimeLocale "%Y-%m-%d" dayStr
+findAppointmentsScenario user pwd lastDay p = do
   setImplicitWait 3000
   login user pwd
     >>= gotoAppointmentSelection "SF Bay Area"
-    >>= waitForAppointmentsNoLaterThanDay "COVID-19 PCR Test" day
+    >>= waitForAppointments "COVID-19 PCR Test" lastDay p
+
+nextDayStartTime day
+  = LocalTime (addDays 1 day ) (TimeOfDay 0 0 0)
+
+dayEndP m d = (<= dayEnd) . time
+  where dayEnd = nextDayStartTime $ fromGregorian 2022 m d
+
+dayStartP m d
+  = (>= LocalTime (fromGregorian 2022 m d) (TimeOfDay 0 0 0))
+  . time
+
+southBayLocations =
+  [ "Sunnyvale"
+  , "Sunnyvale Outdoor Testing Site"
+  , "San Mateo - Bay Meadows"
+  , "San Jose - The Alameda"
+  , "San Jose - North First"
+  , "Redwood City"
+  , "Phillips Brooks School COVID Testing Site"
+  , "Palo Alto"
+  ]
+
+locationsP locations
+  = (`elem` locations) . location
+  . (providerInfo :: Appointment -> ProviderInfo)
+
+timeStartP h m = (>= TimeOfDay h m 0)
+
+timeEndP h m = (<= TimeOfDay h m 0)
+
+returnSessionScenario user pwd = returnSession remoteConfig $ do
+  findAppointmentsScenario user pwd (fromGregorian 2022 4 10)
+    $ locationsP southBayLocations
+
+allP :: [a -> Bool] -> a -> Bool
+allP ps a =
+  and . flip map ps $ \p -> p a
+
 
 -- sess <- returnSessionScenario user pwd "2022-01-10"
 -- sess <- returnSession remoteConfig (login user pwd >> getCare)
