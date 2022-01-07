@@ -46,21 +46,24 @@ selectAppointment :: Text -> ChooseAppointmentPage -> WD ()
 selectAppointment appointmentType _ = do
   click =<< fmap head . filterM (fmap (T.isInfixOf appointmentType) . getText) =<< findElems (ByTag "h5")
 
-findFirstAppointments :: WD [Appointment]
-findFirstAppointments = do
-  appts <- readAppointments
-  if null appts
-    then do
-      nextAppointmentsPage
-      findFirstAppointments
-  else
-    return appts
+findFirstAppointments :: Day -> WD [Appointment]
+findFirstAppointments lastDay = do
+  pageLastDay <- toLastDay =<< findLastDayElem
+  if pageLastDay >= lastDay
+    then return []
+    else do
+      appts <- readAppointments
+      if null appts
+        then do
+          nextAppointmentsPage
+          findFirstAppointments lastDay
+        else
+          return appts
 
 findAppointments :: Day -> (Appointment -> Bool) -> WD [Appointment]
 findAppointments lastDay p = do
-  let lastTime = nextDayStartTime lastDay
-  appts <- findFirstAppointments
-  if not . null . filter ((>= lastTime) . time) $ appts
+  appts <- findFirstAppointments lastDay
+  if null appts
     then return []
     else do
       let appts' = filter p appts
@@ -71,6 +74,19 @@ findAppointments lastDay p = do
           findAppointments lastDay p
     
 nextAppointmentsPage = click =<< findElem (ByXPath "//div/om-arrow-right/div")
+
+findLastDayElem :: WD Element
+findLastDayElem = findElem (ByXPath "//div[om-arrow-right]/div/div[3]")
+
+toLastDay :: ParseTime t => Element -> WD t
+toLastDay = fmap parseLastDay . getText
+
+-- parseLastDay "Sat Jan 08" -> 2022-01-08
+parseLastDay :: ParseTime t => Text -> t
+parseLastDay 
+  = fromJust
+  . parseTimeM True defaultTimeLocale "%Y %a %b %d"
+  . ("2022 " ++ ) . T.unpack
 
 data Appointment
   = Appointment
@@ -101,8 +117,12 @@ readAppointments = do
     else
       return []
 
+waitAppointmentsPageLoaded
+  = findElem (ByPartialLinkText "Back to Appointment Selection") >> return ()
+
 checkAppointmentsExistOnPage = do
-  elems <- waitUntil 1000
+  waitAppointmentsPageLoaded
+  elems <- waitUntil 1
            $ findElems (ByXPath "//button[@data-cy='inventory-button']")
   return . not . null $ elems
 
@@ -197,7 +217,7 @@ timeStartP h m = (>= TimeOfDay h m 0)
 timeEndP h m = (<= TimeOfDay h m 0)
 
 returnSessionScenario user pwd = returnSession remoteConfig $ do
-  findAppointmentsScenario user pwd (fromGregorian 2022 4 10)
+  findAppointmentsScenario user pwd (fromGregorian 2022 5 10)
     $ locationsP southBayLocations
 
 allP :: [a -> Bool] -> a -> Bool
