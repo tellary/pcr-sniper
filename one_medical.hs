@@ -100,7 +100,7 @@ findAppointments lastDay p = do
         then return appts'
         else do
           logWD
-            $ "No appointments match predicate: "
+            $ "No appointments match predicate:\n"
             ++ (LT.unpack . pShowNoColor $ appts)
           nextAppointmentsPage
           findAppointments lastDay p
@@ -231,9 +231,12 @@ returnSession config wd = runSession config $ do
 
 findAppointmentsScenario user pwd lastDay p = do
   setImplicitWait defaultWait
-  login user pwd
-    >>= gotoAppointmentSelection "SF Bay Area"
-    >>= waitForAppointments "COVID-19 PCR Test" lastDay p
+  appts <- login user pwd
+           >>= gotoAppointmentSelection "SF Bay Area"
+           >>= waitForAppointments "COVID-19 PCR Test" lastDay p
+  logWD
+    $ "Found matching appointments:\n"
+    ++ (LT.unpack . pShowNoColor $ appts)
 
 nextDayStartTime day
   = LocalTime (addDays 1 day ) (TimeOfDay 0 0 0)
