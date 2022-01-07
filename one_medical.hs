@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -5,10 +6,10 @@ import Control.Monad
 import Control.Monad.Catch
 import Test.WebDriver
 import Test.WebDriver.Session
+import Test.WebDriver.Commands.Wait
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Time
-import Data.Time.Format
 import Data.Maybe
 
 -- ./chromedriver --port=9515 --log-level=ALL --url-base=/wd/hub
@@ -19,6 +20,8 @@ remoteConfig = useBrowser chrome defaultConfig { wdHost = "localhost"
 
 data HomePage = HomePage
 data ChooseAppointmentPage = ChooseAppointmentPage
+
+defaultWait = 3000
 
 login :: Text -> Text -> WD HomePage
 login user pwd = do
@@ -44,7 +47,7 @@ selectAppointment appointmentType _ = do
   click =<< fmap head . filterM (fmap (T.isInfixOf appointmentType) . getText) =<< findElems (ByTag "h5")
 
 findAppointments = do
-  appts <- readAppointmentTimes
+  appts <- readAppointments
   if null appts
     then do
       nextAppointmentsPage
@@ -52,14 +55,56 @@ findAppointments = do
   else
     return appts
 
-nextAppointmentsPage = click =<< findElem (ByTag "om-arrow-right")
+nextAppointmentsPage = click =<< findElem (ByXPath "//div/om-arrow-right/div")
 
-readAppointments :: WD [Element]
+data Appointment
+  = Appointment
+  { providerInfo :: ProviderInfo
+  , time :: LocalTime
+  } deriving Show
+
+data ProviderInfo
+  = ProviderInfo
+  { location :: Text
+  } deriving Show
+
+data Provider
+  = Provider
+  { providerInfo :: ProviderInfo
+  , appointments :: [Appointment]
+  } deriving Show
+
+readAppointments :: WD [Appointment]
 readAppointments = do
-  findElems (ByXPath "//button[@data-cy='inventory-button']")
+  exist <- checkAppointmentsExistOnPage
+  if exist
+    then do
+      setImplicitWait 0
+      providers <- readProviders
+      setImplicitWait defaultWait
+      return . concat . map appointments $ providers
+    else
+      return []
 
-readAppointmentTimes = do
-  apptElems <- readAppointments
+checkAppointmentsExistOnPage = do
+  elems <- waitUntil 1000
+           $ findElems (ByXPath "//button[@data-cy='inventory-button']")
+  return . not . null $ elems
+
+readProviders =
+  mapM toProvider =<< findElems (ByXPath "//om-provider-inventory")
+
+toProvider elem = do
+  location <- getText =<< findElemFrom elem (ByClass "office-name")
+  times <- toAppointmentTimes =<< findAppointmentsOfProvider elem
+  let info = ProviderInfo location
+  let appts = map (Appointment info) times
+  return $ Provider info appts
+
+findAppointmentsOfProvider elem =
+  findElemsFrom elem (ByXPath ".//button[@data-cy='inventory-button']")
+
+toAppointmentTimes apptElems =
   fromJust . sequence . filter isJust <$> mapM apptTime apptElems
 
 apptTime elem = do
@@ -70,6 +115,7 @@ apptTime elem = do
 parseApptTimeLabel :: Text -> Maybe LocalTime
 parseApptTimeLabel
   = parseTimeM True defaultTimeLocale "%Y %a %m %d %l %M %P"
+  -- Hack to add year to the current date
   . ("2022 " ++)
   . T.unpack
 
@@ -77,7 +123,9 @@ backToAppointmentSelection :: WD ()
 backToAppointmentSelection
   = click =<< findElem (ByPartialLinkText "Back to Appointment Selection")
 
-waitForAppointments :: Text -> (LocalTime -> Bool) -> ChooseAppointmentPage -> WD [LocalTime]
+waitForAppointments
+  :: Text -> (Appointment -> Bool) -> ChooseAppointmentPage
+  -> WD [Appointment]
 waitForAppointments appointmentType p page = do
   selectAppointment appointmentType page
   appts <- filter p <$> findAppointments
@@ -88,9 +136,9 @@ waitForAppointments appointmentType p page = do
     else
       return appts
 
-waitForAppointmentsNoLaterThanDay :: Text -> Day -> ChooseAppointmentPage -> WD [LocalTime]
+waitForAppointmentsNoLaterThanDay :: Text -> Day -> ChooseAppointmentPage -> WD [Appointment]
 waitForAppointmentsNoLaterThanDay appointmentType day page
-  = waitForAppointments appointmentType (<= dayEnd) page
+  = waitForAppointments appointmentType ((<= dayEnd) . time) page
   where dayEnd = LocalTime (addDays 1 day) (TimeOfDay 0 0 0)
 
 selectItem :: Element -> Text -> WD [Element]
