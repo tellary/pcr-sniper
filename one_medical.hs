@@ -61,7 +61,7 @@ findFirstAppointments lastDay = do
     then do
       pageFirstDay <- toLastDay =<< findFirstDayElem
       pageLastDay  <- (toLastDay =<< findLastDayElem :: WD Day)
-      if pageFirstDay >= lastDay
+      if pageFirstDay > lastDay
         then do
           logWD
             $ "pageFirstDay > lastDay: "
@@ -238,11 +238,11 @@ returnSession config wd = runSession config $ do
   catch (wd >>= \a -> return (sess, Right a))
     $ \(e::SomeException) -> return (sess, Left e)
 
-findAppointmentsScenario user pwd lastDay p = do
+findAppointmentsScenario user pwd appointmentType lastDay p = do
   setImplicitWait defaultWait
   appts <- login user pwd
            >>= gotoAppointmentSelection "SF Bay Area"
-           >>= waitForAppointments "COVID-19 PCR Test" lastDay p
+           >>= waitForAppointments appointmentType lastDay p
   logWD
     $ "Found matching appointments:\n"
     ++ (LT.unpack . pShowNoColor $ appts)
@@ -268,25 +268,34 @@ southBayLocations =
   , "Palo Alto"
   ]
 
-locationsP locations
-  = (`elem` locations) . location
+locationsInP locations = locationsP (`elem` locations)
+locationsP p
+  = p . location
   . (providerInfo :: Appointment -> ProviderInfo)
 
 timeStartP h m = (>= TimeOfDay h m 0)
 
 timeEndP h m = (<= TimeOfDay h m 0)
 
+findAppointmentsScenario1
+  = findAppointmentsScenario user pwd "COVID-19 PCR Test"
+    (fromGregorian 2022 1 10)
+  $ locationsInP southBayLocations
 -- (not . locationsP ["UCSF One Medical Testing Site"])
+
+findAppointmentsScenarioGoogle
+  = findAppointmentsScenario user pwd "Google Onsite Covid19 Testing"
+    (fromGregorian 2022 1 11)
+  . locationsP $ \l ->
+         not ("SBO" `T.isInfixOf` l)
+      && not ("SFO" `T.isInfixOf` l)
+  
 returnSessionScenario user pwd
-  = returnSession remoteConfig
-  . findAppointmentsScenario user pwd (fromGregorian 2022 1 10)
-  $ locationsP southBayLocations
+  = returnSession remoteConfig findAppointmentsScenario1
 
 allP :: [a -> Bool] -> a -> Bool
 allP ps a =
   and . flip map ps $ \p -> p a
 
 
--- sess <- returnSessionScenario user pwd "2022-01-10"
--- sess <- returnSession remoteConfig (login user pwd >> getCare)
--- main = returnSessionScenario user pwd "2022-01-10"
+-- main = runSession remoteConfig findAppointmentsScenarioGoogle
