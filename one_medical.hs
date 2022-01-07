@@ -7,6 +7,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Catch
 import Test.WebDriver
+import Test.WebDriver.Capabilities
 import Test.WebDriver.Session
 import Test.WebDriver.Commands.Wait
 import qualified Data.Text as T
@@ -20,6 +21,8 @@ import Data.Maybe
 remoteConfig = useBrowser chrome defaultConfig { wdHost = "localhost"
                                                , wdPort = 9515
                                                }
+
+htmlUnitConfig = useBrowser HTMLUnit defaultConfig
 
 data HomePage = HomePage
 data ChooseAppointmentPage = ChooseAppointmentPage
