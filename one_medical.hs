@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+import Text.Pretty.Simple
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Catch
@@ -9,6 +10,7 @@ import Test.WebDriver
 import Test.WebDriver.Session
 import Test.WebDriver.Commands.Wait
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as LT
 import Data.Text (Text)
 import Data.Time
 import Data.Maybe
@@ -47,23 +49,37 @@ selectAppointment :: Text -> ChooseAppointmentPage -> WD ()
 selectAppointment appointmentType _ = do
   click =<< fmap head . filterM (fmap (T.isInfixOf appointmentType) . getText) =<< findElems (ByTag "h5")
 
+logWD = liftIO . putStrLn
+
 findFirstAppointments :: Day -> WD [Appointment]
 findFirstAppointments lastDay = do
   exist <- checkProvidersExistOnPage
   if exist
     then do
-      pageLastDay <- toLastDay =<< findLastDayElem
-      if pageLastDay >= lastDay
-        then return []
+      pageFirstDay <- toLastDay =<< findFirstDayElem
+      pageLastDay  <- (toLastDay =<< findLastDayElem :: WD Day)
+      if pageFirstDay >= lastDay
+        then do
+          logWD
+            $ "pageFirstDay > lastDay: "
+            ++ show pageFirstDay ++ show lastDay
+          return []
         else do
           appts <- readAppointments
           if null appts
             then do
+              logWD
+                $  "No appointments found between "
+                ++ show pageFirstDay
+                ++ " and "
+                ++ show pageLastDay
               nextAppointmentsPage
               findFirstAppointments lastDay
             else
               return appts
-    else return []
+    else do
+      logWD "No providers found"
+      return []
 
 findAppointments :: Day -> (Appointment -> Bool) -> WD [Appointment]
 findAppointments lastDay p = do
@@ -75,6 +91,9 @@ findAppointments lastDay p = do
       if not . null $ appts'
         then return appts'
         else do
+          logWD
+            $ "No appointments match predicate: "
+            ++ (LT.unpack . pShow $ appts)
           nextAppointmentsPage
           findAppointments lastDay p
     
@@ -82,6 +101,9 @@ nextAppointmentsPage = click =<< findElem (ByXPath "//div/om-arrow-right/div")
 
 findLastDayElem :: WD Element
 findLastDayElem = findElem (ByXPath "//div[om-arrow-right]/div/div[3]")
+
+findFirstDayElem :: WD Element
+findFirstDayElem = findElem (ByXPath "//div[om-arrow-right]/div/div[1]")
 
 toLastDay :: ParseTime t => Element -> WD t
 toLastDay = fmap parseLastDay . getText
@@ -222,7 +244,7 @@ southBayLocations =
   , "San Jose - The Alameda"
   , "San Jose - North First"
   , "Redwood City"
-  , "Phillips Brooks School COVID Testing Site"
+  , "Phillips Brooks School COVID Testing Site" -- Menlo Park
   , "Palo Alto"
   ]
 
@@ -234,9 +256,11 @@ timeStartP h m = (>= TimeOfDay h m 0)
 
 timeEndP h m = (<= TimeOfDay h m 0)
 
-returnSessionScenario user pwd = returnSession remoteConfig $ do
-  findAppointmentsScenario user pwd (fromGregorian 2022 5 10)
-    $ locationsP southBayLocations
+-- (not . locationsP ["UCSF One Medical Testing Site"])
+returnSessionScenario user pwd
+  = returnSession remoteConfig
+  . findAppointmentsScenario user pwd (fromGregorian 2022 5 10)
+  $ locationsP southBayLocations
 
 allP :: [a -> Bool] -> a -> Bool
 allP ps a =
