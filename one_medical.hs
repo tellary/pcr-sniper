@@ -12,6 +12,7 @@ import Data.Time.Format
 import Data.Maybe
 
 -- ./chromedriver --port=9515 --log-level=ALL --url-base=/wd/hub
+-- ./chromedriver --port=9515  --url-base=/wd/hub
 remoteConfig = useBrowser chrome defaultConfig { wdHost = "localhost"
                                                , wdPort = 9515
                                                }
@@ -87,8 +88,10 @@ waitForAppointments appointmentType p page = do
     else
       return appts
 
-waitForAppointmentsBefore appointmentType day page
-  = waitForAppointments appointmentType (<= day) page
+waitForAppointmentsNoLaterThanDay :: Text -> Day -> ChooseAppointmentPage -> WD [LocalTime]
+waitForAppointmentsNoLaterThanDay appointmentType day page
+  = waitForAppointments appointmentType (<= dayEnd) page
+  where dayEnd = LocalTime (addDays 1 day) (TimeOfDay 0 0 0)
 
 selectItem :: Element -> Text -> WD [Element]
 selectItem selectElem value = do
@@ -105,9 +108,8 @@ returnSessionScenario user pwd dayStr = returnSession remoteConfig $ do
   setImplicitWait 3000
   login user pwd
     >>= gotoAppointmentSelection "SF Bay Area"
-    >>= waitForAppointmentsBefore "COVID-19 PCR Test" day
+    >>= waitForAppointmentsNoLaterThanDay "COVID-19 PCR Test" day
 
--- sess <- returnSessionScenario user pwd "2022-01-20"
+-- sess <- returnSessionScenario user pwd "2022-01-10"
 -- sess <- returnSession remoteConfig (login user pwd >> getCare)
-
--- main = returnSessionScenario user pwd "2022-01-09"
+-- main = returnSessionScenario user pwd "2022-01-10"
