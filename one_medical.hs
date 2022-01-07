@@ -78,8 +78,17 @@ findFirstAppointments lastDay = do
                 ++ show pageFirstDay
                 ++ " and "
                 ++ show pageLastDay
-              nextAppointmentsPage
-              findFirstAppointments lastDay
+              if pageLastDay >= lastDay
+                then do
+                  logWD
+                    $ "pageLastDay >= lastDay: "
+                    ++ show pageLastDay
+                    ++ " >= "
+                    ++ show lastDay
+                  return []
+                else do
+                  nextAppointmentsPage
+                  findFirstAppointments lastDay
             else
               return appts
     else do
