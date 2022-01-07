@@ -49,17 +49,21 @@ selectAppointment appointmentType _ = do
 
 findFirstAppointments :: Day -> WD [Appointment]
 findFirstAppointments lastDay = do
-  pageLastDay <- toLastDay =<< findLastDayElem
-  if pageLastDay >= lastDay
-    then return []
-    else do
-      appts <- readAppointments
-      if null appts
-        then do
-          nextAppointmentsPage
-          findFirstAppointments lastDay
-        else
-          return appts
+  exist <- checkProvidersExistOnPage
+  if exist
+    then do
+      pageLastDay <- toLastDay =<< findLastDayElem
+      if pageLastDay >= lastDay
+        then return []
+        else do
+          appts <- readAppointments
+          if null appts
+            then do
+              nextAppointmentsPage
+              findFirstAppointments lastDay
+            else
+              return appts
+    else return []
 
 findAppointments :: Day -> (Appointment -> Bool) -> WD [Appointment]
 findAppointments lastDay p = do
@@ -131,8 +135,17 @@ checkAppointmentsExistOnPage = do
   setImplicitWait defaultWait
   return . not . null $ elems
 
+checkProvidersExistOnPage = do
+  waitAppointmentsPageLoaded
+  setImplicitWait 0
+  elems <- findProviders
+  setImplicitWait defaultWait
+  return . not . null $ elems
+
+findProviders = findElems (ByXPath "//om-provider-inventory")
+
 readProviders =
-  mapM toProvider =<< findElems (ByXPath "//om-provider-inventory")
+  mapM toProvider =<< findProviders
 
 toProvider elem = do
   location <- getText =<< findElemFrom elem (ByClass "office-name")
@@ -187,7 +200,7 @@ returnSession config wd = runSession remoteConfig $ do
     $ \(e::SomeException) -> return (sess, Left e)
 
 findAppointmentsScenario user pwd lastDay p = do
-  setImplicitWait 3000
+  setImplicitWait defaultWait
   login user pwd
     >>= gotoAppointmentSelection "SF Bay Area"
     >>= waitForAppointments "COVID-19 PCR Test" lastDay p
