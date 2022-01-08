@@ -4,6 +4,7 @@
 
 module OneMedical
   ( findAppointmentsScenario
+  , bookAppointmentsScenario
   , FindAppointmentParams(..)
   -- :Predicates:
   , allP
@@ -153,6 +154,7 @@ data Appointment
   = Appointment
   { providerInfo :: ProviderInfo
   , time         :: LocalTime
+  , element      :: Element
   } deriving Show
 
 data ProviderInfo
@@ -205,16 +207,25 @@ readProviders =
 
 toProvider elem = do
   location <- getText =<< findElemFrom elem (ByClass "office-name")
-  times <- toAppointmentTimes =<< findAppointmentsOfProvider elem
   let info = ProviderInfo location
-  let appts = map (Appointment info) times
+  appts <- fmap keepJusts . mapM (toAppointment info)
+           =<< findAppointmentsOfProvider elem
   return $ Provider info appts
 
 findAppointmentsOfProvider elem =
   findElemsFrom elem (ByXPath ".//button[@data-cy='inventory-button']")
 
-toAppointmentTimes apptElems =
-  fromJust . sequence . filter isJust <$> mapM apptTime apptElems
+keepJusts = fromJust . sequence . filter isJust
+
+toAppointment :: ProviderInfo -> Element -> WD (Maybe Appointment)
+toAppointment info elem = do
+  timeMaybe <- apptTime elem
+  case timeMaybe of
+    Nothing -> do
+      logWD $ "Failed to parse appointment time"
+      return Nothing
+    Just time ->
+      return . Just $ Appointment info time elem
 
 apptTime elem = do
   textMaybe <- attr elem "aria-label"
@@ -279,6 +290,7 @@ findAppointmentsScenario params = do
   logWD
     $ "Found matching appointments:\n"
     ++ (LT.unpack . pShowNoColor $ appts)
+  return appts
 
 nextDayStartTime day
   = LocalTime (addDays 1 day ) (TimeOfDay 0 0 0)
@@ -302,3 +314,39 @@ timeEndP h m = (<= TimeOfDay h m 0)
 allP :: [a -> Bool] -> a -> Bool
 allP ps a =
   and . flip map ps $ \p -> p a
+
+findConfirmAppointmentButton = findElem (ByXPath "//button[text() = 'Confirm Appointment']")
+findOkButton = findElem (ByXPath "//button[text() = ' OK ']")
+
+checkYourAppointmentIsBookedText = do
+  elems <- findElems (ByXPath "//h1[text() = 'Your appointment is booked!']")
+  if null elems
+    then return False
+    else return True
+
+findPleaseTryYourSearchAgainText :: WD Element
+findPleaseTryYourSearchAgainText
+  = findElem (ByXPath "//h2[text() = 'Please try your search again.']")
+
+bookAppointment :: [Appointment] -> WD (Maybe Appointment)
+bookAppointment [] = return Nothing
+bookAppointment (appt:appts) = do
+  click . element $ appt
+  click =<< findConfirmAppointmentButton
+  booked <- checkYourAppointmentIsBookedText
+  if booked
+    then return . Just $ appt
+    else do
+      logWD $ "Failed to book appointment: " ++ show appt
+      click =<< findOkButton
+      logWD $ "Returned to appointments page"
+      bookAppointment appts
+
+bookAppointmentsScenario params = do
+  appts <- findAppointmentsScenario params
+  apptMb <- bookAppointment appts
+  case apptMb of
+    Just appt -> do
+      logWD $ "Booked appointment: " ++ show appt
+      return appt
+    Nothing -> bookAppointmentsScenario params
