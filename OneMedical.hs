@@ -4,7 +4,8 @@
 
 module OneMedical
   ( findAppointmentsScenario
-  -- Predicates
+  , FindAppointmentParams(..)
+  -- :Predicates:
   , allP
   , dayEndP
   , dayStartP
@@ -12,7 +13,7 @@ module OneMedical
   , locationsP
   , timeStartP
   , timeEndP
-  -- Selenium
+  -- :Selenium:
   , remoteConfig
   , returnSession
   ) where
@@ -41,7 +42,7 @@ remoteConfig = useBrowser chrome defaultConfig { wdHost = "localhost"
 data HomePage = HomePage
 data ChooseAppointmentPage = ChooseAppointmentPage
 
-defaultWait = 3000
+defaultWait = 10000
 
 login :: Text -> Text -> WD HomePage
 login user pwd = do
@@ -254,11 +255,27 @@ returnSession config wd = runSession config $ do
   catch (wd >>= \a -> return (sess, Right a))
     $ \(e::SomeException) -> return (sess, Left e)
 
-findAppointmentsScenario user pwd appointmentType lastDay p = do
+data FindAppointmentParams
+  = FindAppointmentParams
+  { user            :: Text
+  , password        :: Text
+  -- Choice in the "I'm looking for appointments in..." field, i.e:
+  -- "SF Bay Area", "Chicago", "Ney York", etc
+  , area            :: Text
+  , appointmentType :: Text
+  -- We search appointments from today until the `lastDay`
+  , lastDay         :: Day
+  -- Predicate that tells is the given appointment matches our search
+  , predicate       :: Appointment -> Bool
+  } -- Do not derive Show to prevent printing `user` and `password`
+findAppointmentsScenario params = do
   setImplicitWait defaultWait
-  appts <- login user pwd
-           >>= gotoAppointmentSelection "SF Bay Area"
-           >>= waitForAppointments appointmentType lastDay p
+  appts <- login (user params) (password params)
+           >>= gotoAppointmentSelection (area params)
+           >>= waitForAppointments
+               (appointmentType params)
+               (lastDay params)
+               (predicate params)
   logWD
     $ "Found matching appointments:\n"
     ++ (LT.unpack . pShowNoColor $ appts)
