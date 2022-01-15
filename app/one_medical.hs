@@ -35,7 +35,7 @@ params
 
 findAppointments = findAppointmentsScenario params
 bookAppointment = bookAppointmentScenario params
--- sess <- returnSession remoteConfig findSouthBayLocations
+-- sess <- returnSession remoteConfig findAppointments
 
 main = runSession remoteConfig findAppointments
 

@@ -51,10 +51,22 @@ login :: Text -> Text -> WD HomePage
 login user pwd = do
   openPage "https://onemedical.com"
   click =<< findElem (ByPartialLinkText "Log in")
-  sendKeys user =<< findElem (ById "email")
-  sendKeys pwd =<< findElem (ById "password")
-  click =<< findElem (ById "btn-login")
-  return HomePage
+  loop
+  where loop = do
+          sendKeys user =<< findElem (ById "email")
+          sendKeys pwd =<< findElem (ById "password")
+          login <- findElem (ById "btn-login")
+          loginDisplayed <- isDisplayed login
+          logWD ("'Log In' button is displayed: " ++ show loginDisplayed)
+          click login
+          catch (
+            findElem (ByPartialLinkText "Get Care")
+            >> return HomePage
+            ) $ \(e::SomeException) -> do
+              logWD $ "Can't login, trying again"
+              clearInput =<< findElem (ById "email")
+              clearInput =<< findElem (ById "password")
+              loop
 
 gotoAppointmentSelection :: Text -> HomePage -> WD ChooseAppointmentPage
 gotoAppointmentSelection location _  = do
