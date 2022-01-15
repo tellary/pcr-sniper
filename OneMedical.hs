@@ -4,8 +4,10 @@
 
 module OneMedical
   ( findAppointmentsScenario
-  , bookAppointmentsScenario
+  , bookAppointmentScenario
   , FindAppointmentParams(..)
+  , Appointment(..)
+  , ProviderInfo(..)
   -- :Predicates:
   , allP
   , dayEndP
@@ -129,8 +131,18 @@ findAppointments lastDay p = do
           logWD
             $ "No appointments match predicate:\n"
             ++ (LT.unpack . pShowNoColor $ appts)
-          nextAppointmentsPage
-          findAppointments lastDay p
+          pageLastDay  <- (toLastDay =<< findLastDayElem :: WD Day)
+          if pageLastDay >= lastDay
+            then do
+              logWD
+                $ "pageLastDay >= lastDay: "
+                ++ show pageLastDay
+                ++ " >= "
+                ++ show lastDay
+              return []
+            else do
+              nextAppointmentsPage
+              findAppointments lastDay p
 
 nextAppointmentsPage = click =<< findElem (ByXPath "//div/om-arrow-right/div")
 
@@ -342,11 +354,11 @@ bookAppointment (appt:appts) = do
       logWD $ "Returned to appointments page"
       bookAppointment appts
 
-bookAppointmentsScenario params = do
+bookAppointmentScenario params = do
   appts <- findAppointmentsScenario params
   apptMb <- bookAppointment appts
   case apptMb of
     Just appt -> do
       logWD $ "Booked appointment: " ++ show appt
       return appt
-    Nothing -> bookAppointmentsScenario params
+    Nothing -> bookAppointmentScenario params
