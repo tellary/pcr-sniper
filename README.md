@@ -23,7 +23,9 @@ To book an appointment, you will have to
 4. Dry-run the program to confirm it correctly searches for appointments.
 5. Run the program for an extended period until the desired appointment is available.
 
-I suggest you start with loose criteria for step 3, get an appointment, and then refine your search criteria in step 3 and repeat from step 4.
+I suggest you start with loose criteria for step 3, get an appointment, and then refine your search criteria in step 3 and repeat from step 4. You should cancel an existing appointment as soon as possible once you get a better one (closer or earlier). Click on a menu in the top right corner of the site and select "Appointments." You will see your appointments there and can cancel the less-matching one.
+
+![](data/appointments.png)
 
 You may want to write a function in Haskell to customize your appointment selection criteria.
 
@@ -170,7 +172,7 @@ params
   }
 ```
 
-Predicate function takes an `Appointment` and must return `True` if the appointment matches your criteria. You may write a custom `predicate` function in Haskell. The following example accepts an appointments if the provider's location doesn't have "San Jose" infix and the time of an appointment is after 10 am:
+Predicate function takes an `Appointment` and must return `True` if the appointment matches your criteria. You may write a custom `predicate` function in Haskell. The following example accepts an appointment if the provider's location doesn't have "San Jose" infix and the time of an appointment is after 10 am:
 
 ```haskell
 params
@@ -242,3 +244,4 @@ main = runSession remoteConfig bookAppointment
 ```
 
 Execute `stack run` and wait until the program stops after a successful booking. The program is not 100% reliable. It may fail for a few reasons. So, you may want to check on it once in a while to see if it still runs.
+
