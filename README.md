@@ -131,6 +131,8 @@ params
   }
 ```
 
+You can change `area` to wherever region where One Medical is available, i.e., "New York," "Chicago," etc.
+
 Specify `lastDay`. The program will search appointments from today until the value of the `lastDay`. `lastDay = fromGregorian 2022 01 20` means that it will search from today until January 20th, 2022.
 
 Configure appointment search criteria. An obvious use case is to provide locations of interest. The simplest way is to feed a list of locations into the `locationsInP` function. For example, the following will only look for appointments in three offices.
@@ -183,8 +185,6 @@ params
       && (localTimeOfDay (time appt) >= TimeOfDay 10 0 0)
   }
 ```
-
-You can change `area` to wherever region where One Medical is available, i.e., "New York," "Chicago," etc.
 
 Dry-run the program to confirm it correctly searches for appointments
 ---------------------------------------------------------------------
