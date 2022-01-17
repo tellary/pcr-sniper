@@ -11,7 +11,7 @@ If you can book an appointment directly from One Medical site or with another pr
 
 It keeps searching until an appointment matching your criteria becomes available.
 
-This program does literally what One Medical suggests you should do. It "checks back regularly" to see if appointments became available. Here is that the One Medical site says, literally:
+This program does exactly what One Medical suggests you should do. It "checks back regularly" to see if appointments became available. Here is that the One Medical site says, literally:
 
 ![](data/check_back.png)
 
