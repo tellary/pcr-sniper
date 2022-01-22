@@ -17,13 +17,37 @@ southBayLocations =
   , "Palo Alto"
   ]
 
+-- Didn't check if these are all locations
+sanFranciscoLocations =
+  [ "Castro"
+  , "Cow Hollow - Union Street"
+  , "Duboce Triangle"
+  , "Financial District - Clay"
+  , "Financial District - Montgomery"
+  , "Financial District - Sutter"
+  , "Four Embarcadero Center"
+  , "Hayes Valley"
+  , "Inner Sunset"
+  , "Laurel Heights"
+  , "Mission - Valencia"
+  , "Mission Bay"
+  , "Noe Valley - 24th St"
+  , "Pacific Heights"
+  , "SoMa - South Park"
+  , "Spear Street"
+  , "Transbay Center"
+  , "Two Embarcadero Center"
+  , "UCSF One Medical Testing Site"
+  , "West Portal"
+  ]
+
 params
   = FindAppointmentParams
   { user = "<your email registered with OneMedical>"
   , password = "<your OneMedical password>"
   , area = "SF Bay Area"
   , appointmentType = "COVID-19 PCR Test"
-  , lastDay = fromGregorian 2022 01 20
+  , lastDay = fromGregorian 2022 01 30
   , predicate = locationsInP southBayLocations
   -- , predicate = not . locationsInP [ "UCSF One Medical Testing Site"
   --                                  , "Sunnyvale Outdoor Testing Site"
